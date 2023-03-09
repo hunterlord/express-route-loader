@@ -1,3 +1,7 @@
+import fs from 'fs';
+import path from 'path';
+const basename = path.basename(__filename);
+
 function normalize(strArray) {
   const resultArray = [];
   if (strArray.length === 0) {
@@ -74,6 +78,7 @@ const METHODS = {
 
 class RouteLoader {
   app = null;
+  dir = null;
 
   mixins = [];
 
@@ -90,14 +95,14 @@ class RouteLoader {
         middleware = [],
         children = [],
         action,
-        before,
+        exceptMiddlewares = [],
       } = node;
       if (typeof subPath !== 'string') continue;
       const fullPath = urlJoin('/', rootPath, subPath);
       const middlewares = [...rootMiddleware, ...middleware];
 
       if (action) {
-        console.log(`[${method.toUpperCase()}] registered:`, fullPath);
+        console.log(`[XROUTE][${method.toUpperCase()}] registered:`, fullPath);
         let xaction = action;
         if (this.mixins) {
           this.mixins.forEach((mixin) => {
@@ -105,7 +110,12 @@ class RouteLoader {
           });
         }
 
-        this.app[method](fullPath, [...middlewares, xaction]);
+        this.app[method](fullPath, [
+          ...middlewares.filter((x) => {
+            return !exceptMiddlewares.includes(x.name);
+          }),
+          xaction,
+        ]);
       }
 
       if (children && children.length) {
@@ -122,4 +132,74 @@ class RouteLoader {
   }
 }
 
-export { RouteLoader, METHODS };
+const loadFile = async (dir, filename, defaultValue = []) => {
+  const pathname = path.resolve(dir, filename);
+  const findFile = fs.existsSync(pathname);
+  let result = defaultValue;
+  if (findFile) {
+    const { default: data } = await import(pathname);
+    result = data;
+  }
+
+  return result;
+};
+
+const scanDirs = async (dir, routes = []) => {
+  const files = fs.readdirSync(dir);
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (file.indexOf('.') === 0 || file.indexOf('_') === 0 || file === basename) continue;
+    const pathname = path.resolve(dir, file);
+    const isDirectory = fs.lstatSync(pathname).isDirectory();
+
+    if (isDirectory) {
+      const middleware = await loadFile(dir, '_middlewares.js', []);
+      const children = await scanDirs(pathname);
+
+      routes.push({
+        path: file,
+        middleware,
+        children,
+      });
+    } else {
+      if (file.slice(-3) !== '.js') continue;
+      const actionName = file.slice(0, -3);
+      const {
+        default: action,
+        method = METHODS.GET,
+        url = null,
+        exceptMiddlewares = [],
+      } = await import(pathname);
+
+      const publicMiddleware = await loadFile(dir, '_middlewares.js', []);
+      const selfMiddleware = await loadFile(dir, `_${actionName}_middlewares.js`, []);
+
+      if (typeof action !== 'function') {
+        continue;
+      }
+
+      routes.push({
+        path: url || actionName,
+        method,
+        middleware: [...publicMiddleware, ...selfMiddleware],
+        exceptMiddlewares,
+        action,
+      });
+    }
+  }
+
+  return routes;
+};
+
+const rtl = (app) => {
+  const routes = [];
+  return async (dir) => {
+    const routes = await scanDirs(dir);
+    const routeLoader = new RouteLoader(app);
+    const mixin = await loadFile(dir, '_mixin.js', []);
+    mixin.reverse().forEach((x) => routeLoader.addMixin(x));
+    routeLoader.setRoute(routes);
+  };
+};
+
+export { RouteLoader, METHODS, rtl };
