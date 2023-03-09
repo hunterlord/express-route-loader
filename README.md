@@ -50,6 +50,10 @@ const app = express();
 
 \_middlewares.js 必须返回中间件数组, 中间件方法名请设为不同名称，action 需要排除中间件时需要。
 
+中间件会影像所有当前目录的路由（action），已经当前目录之下的所有子目录的路由。
+
+想要给路由单独加路由的话，创建名称为 \_{action 名称}\_middlewares.js
+
 ```javascript
 const middleware = async (req, res, next) => {
   next();
@@ -121,6 +125,7 @@ export default async ({ moment, next, req, res }) => {};
 const url = '/test/:uid'; // 不返回时路由名称以文件名为准
 const method = 'post'; // 不返回时默认get
 const exceptMiddlewares = ['auth']; // 排除中间件， 所有中间不应该用相同的名字, 如果中间件名字相同，则会同时排除
+export { url, method, exceptMiddlewares };
 export default async () => {}; // action
 ```
 
