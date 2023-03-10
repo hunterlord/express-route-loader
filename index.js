@@ -298,7 +298,7 @@ var scanDirs = /*#__PURE__*/function () {
 
             file = files[i];
 
-            if (!(file.indexOf('.') === 0 || file.indexOf('_') === 0 || file === basename)) {
+            if (!(file.indexOf('.') === 0 || file.indexOf('_') === 0)) {
               _context2.next = 7;
               break;
             }

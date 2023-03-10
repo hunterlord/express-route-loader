@@ -148,7 +148,7 @@ const scanDirs = async (dir, routes = []) => {
   const files = fs.readdirSync(dir);
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    if (file.indexOf('.') === 0 || file.indexOf('_') === 0 || file === basename) continue;
+    if (file.indexOf('.') === 0 || file.indexOf('_') === 0) continue;
     const pathname = path.resolve(dir, file);
     const isDirectory = fs.lstatSync(pathname).isDirectory();
 
